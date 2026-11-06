@@ -1,0 +1,40 @@
+name: Build AimTrainer Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extrair pacote
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Path . -Filter "AimTrainer-Pacote-Pronto-GitHub.zip" -Recurse | Select-Object -First 1
+          if (-not $zip) { throw "ZIP nao encontrado" }
+          Expand-Archive $zip.FullName -DestinationPath source -Force
+
+      - name: Encontrar projeto
+        shell: pwsh
+        run: |
+          $cmake = Get-ChildItem source -Filter CMakeLists.txt -Recurse | Select-Object -First 1
+          if (-not $cmake) { throw "CMakeLists.txt nao encontrado" }
+          "SOURCE_DIR=$($cmake.DirectoryName)" >> $env:GITHUB_ENV
+
+      - name: Compilar
+        run: |
+          cmake -S "$env:SOURCE_DIR" -B build
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build build --config Release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Enviar EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: AimTrainer-Windows
+          path: build/Release/*.exe
+          if-no-files-found: error
